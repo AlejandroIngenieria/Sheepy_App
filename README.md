@@ -166,13 +166,24 @@ docker-compose down -v
 
 Para ejecutar la aplicación de Flutter de manera nativa en un emulador o dispositivo físico con "Hot Reload":
 
-1. Mantener la base de datos y el backend operativos: 
-   `docker-compose up -d db backend`
-2. Configurar la IP local y arrancar Flutter:
+1. **Levantar únicamente el Backend y la BD:**
+   No es necesario correr el contenedor del frontend si vas a probar en un dispositivo físico o emulador. Inicia solo los servicios necesarios:
+   ```bash
+   docker-compose up -d db backend
+   ```
 
-```bash
-cd sheepy_app
-flutter pub get
-flutter run --dart-define=BIBLE_API_HOST=[IP_ADDRESS]
-```
-*(Es necesario sustituir `[IP_ADDRESS]` por la dirección IP local de la computadora en la red Wi-Fi/LAN, para que el emulador móvil alcance el backend).*
+2. **Averiguar tu IP Local:**
+   Tu celular (o emulador) necesitará conectarse a tu computadora a través de tu red Wi-Fi/LAN, por lo que `localhost` no funcionará. Busca tu dirección IPv4 (ej. `192.168.1.55`):
+   - Windows: `ipconfig`
+   - macOS/Linux: `ifconfig`
+
+3. **Ejecutar Flutter inyectando la IP:**
+   Navega a la carpeta del frontend y ejecuta la aplicación indicando la URL completa (incluyendo `http://` y el puerto `:3000`):
+
+   ```bash
+   cd sheepy_app
+   flutter pub get
+   flutter run --dart-define=BIBLE_API_HOST=http://[TU_IP_LOCAL]:3000
+   ```
+   
+   *(Si usas VS Code para depurar, puedes agregar `--dart-define=BIBLE_API_HOST=http://[TU_IP_LOCAL]:3000` dentro del array `"args"` en tu archivo `.vscode/launch.json`).*
