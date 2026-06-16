@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flutter_animate/flutter_animate.dart';
+
 import '../core/app_theme.dart';
 import '../models/quiz_question.dart';
 import '../providers/providers.dart';
@@ -30,7 +32,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const Icon(Icons.close_rounded),
           onPressed: () => ref.read(navigationProvider.notifier).goHome(),
         ),
         title: Text('Quiz · ${book.name} ${widget.chapter}'),
@@ -65,25 +67,41 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                LinearProgressIndicator(
-                  value: (_questionIndex + 1) / _questions!.length,
-                  color: AppTheme.primary,
-                  backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                // Progress bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: (_questionIndex + 1) / _questions!.length,
+                    minHeight: 10,
+                    color: AppTheme.primary,
+                    backgroundColor: AppTheme.primaryLight.withValues(alpha: 0.15),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Pregunta ${_questionIndex + 1} de ${_questions!.length}',
-                  style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  q.prompt,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                  textAlign: TextAlign.center,
+                // Question
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryLight.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    q.prompt,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 Expanded(
                   child: ListView(
                     children: [
@@ -109,7 +127,12 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
   void _answer(bool correct) {
     setState(() {
       _lastAnswerCorrect = correct;
-      if (correct) _correctCount++;
+      if (correct) {
+        _correctCount++;
+      } else {
+        ref.read(gamificationServiceProvider).loseLife();
+        ref.invalidate(userStatsProvider);
+      }
     });
 
     Future.delayed(const Duration(milliseconds: 900), () {
@@ -132,44 +155,75 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
           if (passed)
             const LottieCelebration()
           else
-            const Icon(Icons.sentiment_dissatisfied, size: 72, color: Colors.grey),
-          const SizedBox(height: 16),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.sentiment_dissatisfied_rounded,
+                size: 48,
+                color: AppTheme.accent,
+              ),
+            ),
+          const SizedBox(height: 20),
           Text(
-            passed ? '¡Capítulo completado!' : 'Sigue practicando',
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            passed ? '🎉 ¡Capítulo completado!' : '😔 Sigue practicando',
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             '$_correctCount de ${_questions!.length} correctas',
-            style: const TextStyle(fontSize: 18, color: Colors.grey),
+            style: TextStyle(fontSize: 18, color: Colors.grey.shade500, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 32),
           if (passed)
-            ElevatedButton(
-              onPressed: () async {
-                await ref
-                    .read(userProgressProvider.notifier)
-                    .completeChapter(bookId, widget.chapter);
-                ref.read(navigationProvider.notifier).goHome();
-              },
-              child: const Text('Desbloquear siguiente capítulo'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final book = ref.read(selectedBookProvider);
+                  await ref.read(gamificationServiceProvider).saveProgress(
+                    book.bookNumber,
+                    widget.chapter
+                  );
+                  ref.invalidate(userStatsProvider);
+                  
+                  await ref
+                      .read(userProgressProvider.notifier)
+                      .completeChapter(bookId, widget.chapter);
+                  ref.read(navigationProvider.notifier).goHome();
+                },
+                icon: const Icon(Icons.lock_open_rounded),
+                label: const Text('Desbloquear siguiente capítulo'),
+              ),
             )
           else
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _questionIndex = 0;
-                  _correctCount = 0;
-                  _questions = null;
-                  _lastAnswerCorrect = null;
-                });
-              },
-              child: const Text('Reintentar quiz'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _questionIndex = 0;
+                    _correctCount = 0;
+                    _questions = null;
+                    _lastAnswerCorrect = null;
+                  });
+                },
+                icon: const Icon(Icons.replay_rounded),
+                label: const Text('Reintentar quiz'),
+              ),
             ),
+          const SizedBox(height: 8),
           TextButton(
             onPressed: () => ref.read(navigationProvider.notifier).goHome(),
-            child: const Text('Volver al camino'),
+            child: const Text(
+              'Volver al camino',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -191,31 +245,52 @@ class _OptionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Color? bg;
-    if (feedback == true) bg = Colors.green.withValues(alpha: 0.2);
-    if (feedback == false) bg = Colors.red.withValues(alpha: 0.15);
+    Color borderColor = Colors.transparent;
+    if (feedback == true) {
+      bg = AppTheme.success.withValues(alpha: 0.12);
+      borderColor = AppTheme.success;
+    }
+    if (feedback == false) {
+      bg = AppTheme.accent.withValues(alpha: 0.1);
+      borderColor = AppTheme.accent;
+    }
 
-    return Padding(
+    Widget child = Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
         color: bg ?? Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
+          borderRadius: BorderRadius.circular(16),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: borderColor == Colors.transparent
+                    ? AppTheme.primaryLight.withValues(alpha: 0.2)
+                    : borderColor,
+                width: 2,
+              ),
             ),
             child: Text(
               text,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
         ),
       ),
     );
+
+    if (feedback == true) {
+      return child.animate().shimmer(duration: 400.ms, color: AppTheme.success.withValues(alpha: 0.3));
+    } else if (feedback == false) {
+      return child.animate().shake(hz: 8, curve: Curves.easeInOutCubic, duration: 400.ms);
+    }
+
+    return child;
   }
 }

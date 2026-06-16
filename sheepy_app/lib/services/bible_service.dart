@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'auth_service.dart';
+
 import '../core/api_config.dart';
 import '../models/bible_book.dart';
 import '../models/verse.dart';
@@ -14,7 +16,13 @@ class BibleService {
   Future<ChapterContent> fetchChapter(BibleBook book, int chapter) async {
     final url = ApiConfig.chapterUri(book.bookNumber, chapter);
 
-    final response = await _client.get(url).timeout(
+    final authService = AuthService();
+    final token = await authService.getToken();
+
+    final response = await _client.get(
+      url,
+      headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+    ).timeout(
       const Duration(seconds: 20),
       onTimeout: () => throw BibleServiceException(
         'Tiempo de espera agotado. ¿Está activa la API en ${ApiConfig.bibleBaseUrl}?',

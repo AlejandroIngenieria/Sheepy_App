@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: sheepy_db
+    environment:
+      MYSQL_ROOT_PASSWORD: tu_password_aqui
+      MYSQL_DATABASE: biblia_rv1909
+    ports:
+      - "3308:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/1_init.sql
+      - ./backend_sheepy/rv_1909.csv:/docker-entrypoint-initdb.d/rv_1909.csv
+    restart: unless-stopped
+
+  backend:
+    build: 
+      context: ./backend_sheepy
+    container_name: sheepy_backend
+    environment:
+      DB_HOST: db
+      DB_USER: root
+      DB_PASSWORD: tu_password_aqui
+      DB_NAME: biblia_rv1909
+      DB_PORT: 3306
+      PORT: 3000
+      JWT_SECRET: super_secret_jwt_key_sheepy_2026
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./sheepy_app
+    container_name: sheepy_frontend
+    ports:
+      - "8085:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db_data:

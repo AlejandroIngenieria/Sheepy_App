@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,6 +8,9 @@ import '../models/user_progress.dart';
 import '../models/verse.dart';
 import '../services/bible_service.dart';
 import '../services/progress_storage.dart';
+import '../services/gamification_service.dart';
+import '../services/auth_service.dart';
+import '../models/user_stats.dart';
 import '../services/quiz_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -21,6 +25,32 @@ final bibleServiceProvider = Provider<BibleService>((ref) {
   final service = BibleService();
   ref.onDispose(service.dispose);
   return service;
+});
+
+final gamificationServiceProvider = Provider<GamificationService>((ref) => GamificationService());
+
+final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+
+final userStatsProvider = FutureProvider<UserStats>((ref) async {
+  final stats = await ref.read(authServiceProvider).fetchMe();
+  
+  // Sincronizar capítulos completados en segundo plano
+  try {
+    final completed = await ref.read(gamificationServiceProvider).getCompletedChapters();
+    ref.read(userProgressProvider.notifier).syncFromBackend(completed);
+  } catch (e) {
+    debugPrint('Error syncing progress: $e');
+  }
+
+  return stats;
+});
+
+final booksProgressProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  return await ref.read(gamificationServiceProvider).getBooksProgress();
+});
+
+final leaderboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  return await ref.read(gamificationServiceProvider).getLeaderboard();
 });
 
 final quizServiceProvider = Provider<QuizService>((ref) => QuizService());
@@ -42,6 +72,29 @@ class UserProgressNotifier extends StateNotifier<UserProgress> {
   }
 
   Future<void> _persist() => _storage.save(state);
+
+  void syncFromBackend(List<Map<String, dynamic>> completedRows) {
+    final map = Map<String, List<int>>.from(state.completedChapters);
+    for (var row in completedRows) {
+      final bookRaw = row['book_number'];
+      final chapterRaw = row['chapter'];
+      
+      final bookNum = bookRaw is int ? bookRaw : int.tryParse(bookRaw?.toString() ?? '') ?? 0;
+      final chapter = chapterRaw is int ? chapterRaw : int.tryParse(chapterRaw?.toString() ?? '') ?? 0;
+      
+      // Convert bookNumber to bookId
+      final book = allBibleBooks.where((b) => b.bookNumber == bookNum).firstOrNull;
+      if (book != null) {
+        final list = List<int>.from(map[book.id] ?? []);
+        if (!list.contains(chapter)) {
+          list.add(chapter);
+          map[book.id] = list;
+        }
+      }
+    }
+    state = state.copyWith(completedChapters: map);
+    _persist();
+  }
 
   void selectBook(String bookId) {
     state = state.copyWith(selectedBookId: bookId);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../core/app_theme.dart';
 
@@ -22,67 +23,124 @@ class PathChapterNode extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // Determine colors based on state
+    final Color bgColor;
+    final Color borderColor;
+    final Color iconColor;
+    final List<BoxShadow>? shadows;
+
+    if (isCompleted) {
+      bgColor = AppTheme.success;
+      borderColor = AppTheme.success;
+      iconColor = Colors.white;
+      shadows = [
+        BoxShadow(
+          color: AppTheme.success.withValues(alpha: 0.3),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ];
+    } else if (isUnlocked) {
+      bgColor = AppTheme.primary;
+      borderColor = AppTheme.primaryLight;
+      iconColor = Colors.white;
+      shadows = [
+        BoxShadow(
+          color: AppTheme.primary.withValues(alpha: 0.35),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
+        ),
+      ];
+    } else {
+      bgColor = isDark ? const Color(0xFF2D2248) : const Color(0xFFE8E0F0);
+      borderColor = isDark ? const Color(0xFF3D3058) : const Color(0xFFD0C4E0);
+      iconColor = isDark ? Colors.grey.shade600 : Colors.grey.shade400;
+      shadows = null;
+    }
+
+    Widget node = GestureDetector(
+      onTap: isUnlocked ? onTap : null,
+      child: Column(
+        children: [
+          // Connector line
+          if (chapter > 1)
+            Container(
+              width: 3,
+              height: 24,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    (isUnlocked ? AppTheme.primaryLight : borderColor).withValues(alpha: 0.4),
+                    isUnlocked ? AppTheme.primaryLight : borderColor,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          // The node itself
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: bgColor,
+              border: Border.all(color: borderColor, width: 3),
+              boxShadow: shadows,
+            ),
+            child: Center(
+              child: isCompleted
+                  ? const Icon(Icons.check_rounded, color: Colors.white, size: 32)
+                  : isUnlocked
+                      ? Text(
+                          '$chapter',
+                          style: TextStyle(
+                            color: iconColor,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        )
+                      : Icon(Icons.lock_rounded, color: iconColor, size: 22),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Cap. $chapter',
+            style: TextStyle(
+              color: isUnlocked
+                  ? (isDark ? AppTheme.primaryLight : AppTheme.primaryDark)
+                  : Colors.grey,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // Add glow pulse for the NEXT unlocked chapter
+    if (isUnlocked && !isCompleted) {
+      node = node
+          .animate(onPlay: (c) => c.repeat(reverse: true))
+          .scale(
+            begin: const Offset(1.0, 1.0),
+            end: const Offset(1.06, 1.06),
+            duration: 1200.ms,
+            curve: Curves.easeInOut,
+          );
+    }
+
     return Align(
       alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
       child: Padding(
         padding: EdgeInsets.only(
-          left: isLeft ? 40 : 0,
-          right: isLeft ? 0 : 40,
-          bottom: 20,
+          left: isLeft ? 48 : 0,
+          right: isLeft ? 0 : 48,
+          bottom: 8,
         ),
-        child: GestureDetector(
-          onTap: isUnlocked ? onTap : null,
-          child: Column(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isUnlocked
-                      ? (isCompleted ? AppTheme.primaryDark : AppTheme.primary)
-                      : (isDark ? Colors.grey[800] : Colors.grey[300]),
-                  border: Border.all(
-                    color: isUnlocked ? AppTheme.primaryDark : Colors.grey,
-                    width: 4,
-                  ),
-                  boxShadow: isUnlocked
-                      ? [
-                          BoxShadow(
-                            color: AppTheme.primary.withValues(alpha: 0.35),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Center(
-                  child: isCompleted
-                      ? const Icon(Icons.check, color: Colors.white, size: 30)
-                      : isUnlocked
-                          ? Text(
-                              '$chapter',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                          : const Icon(Icons.lock, color: Colors.grey, size: 24),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Cap. $chapter',
-                style: TextStyle(
-                  color: isUnlocked ? AppTheme.primaryDark : Colors.grey,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
+        child: node,
       ),
     );
   }

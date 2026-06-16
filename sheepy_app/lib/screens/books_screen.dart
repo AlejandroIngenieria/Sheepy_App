@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../core/app_theme.dart';
 import '../data/bible_books.dart';
@@ -14,8 +16,20 @@ class BooksScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        Text(
+          '📚 Biblioteca',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Elige un libro para empezar tu aventura',
+          style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 20),
         _section(context, ref, 'Antiguo Testamento', Testament.old),
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
         _section(context, ref, 'Nuevo Testamento', Testament.nuevo),
       ],
     );
@@ -29,31 +43,56 @@ class BooksScreen extends ConsumerWidget {
   ) {
     final books = booksByTestament(testament);
     final selected = ref.watch(selectedBookProvider);
+    final asyncProgress = ref.watch(booksProgressProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryLight.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.primaryDark,
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: books.map((b) => _BookCard(
-                book: b,
-                isSelected: b.id == selected.id,
-                completed: ref.watch(userProgressProvider).completedFor(b.id).length,
-                onTap: () {
-                  ref.read(userProgressProvider.notifier).selectBook(b.id);
-                  ref.read(navigationProvider.notifier).setTab(0);
-                },
-              )).toList(),
+        const SizedBox(height: 14),
+        asyncProgress.when(
+          data: (progressData) {
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: books.asMap().entries.map((entry) {
+                final b = entry.value;
+                final match = progressData.where((p) => p['book_number'] == b.bookNumber).firstOrNull;
+                final completedCount = match != null ? (match['completed_chapters'] as int) : 0;
+                
+                return _BookCard(
+                  book: b,
+                  isSelected: b.id == selected.id,
+                  completed: completedCount,
+                  onTap: () {
+                    ref.read(userProgressProvider.notifier).selectBook(b.id);
+                    ref.read(navigationProvider.notifier).setTab(0);
+                  },
+                ).animate(delay: (entry.key * 30).ms).fadeIn(duration: 300.ms).slideY(begin: 0.08);
+              }).toList(),
+            );
+          },
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: CircularProgressIndicator(),
+            ),
+          ),
+          error: (e, s) => Text('Error: $e'),
         ),
       ],
     );
@@ -77,45 +116,73 @@ class _BookCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final width = (MediaQuery.sizeOf(context).width - 50) / 2;
+    final progressValue = book.chapters > 0 ? completed / book.chapters : 0.0;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
         width: width,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isSelected
-              ? (isDark ? Colors.blue[900] : Colors.blue[50])
+              ? AppTheme.primary.withValues(alpha: isDark ? 0.2 : 0.08)
               : Theme.of(context).cardColor,
           border: Border.all(
-            color: isSelected ? AppTheme.primary : Colors.grey.shade300,
+            color: isSelected ? AppTheme.primary : Colors.transparent,
             width: 2,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppTheme.primary.withValues(alpha: 0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _MiniSheepHead(woolColor: book.woolColor),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            Row(
+              children: [
+                _MiniSheepAvatar(woolColor: book.woolColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
                     book.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
                       color: isSelected ? AppTheme.primaryDark : null,
                     ),
                   ),
-                  Text(
-                    '$completed / ${book.chapters} cap.',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Mini progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progressValue,
+                minHeight: 5,
+                backgroundColor: AppTheme.primaryLight.withValues(alpha: 0.1),
+                color: completed == book.chapters ? AppTheme.success : AppTheme.primary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$completed / ${book.chapters} cap.',
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -125,77 +192,66 @@ class _BookCard extends StatelessWidget {
   }
 }
 
-class _MiniSheepHead extends StatelessWidget {
+class _MiniSheepAvatar extends StatelessWidget {
   final Color woolColor;
   
-  const _MiniSheepHead({required this.woolColor});
+  const _MiniSheepAvatar({required this.woolColor});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: 36,
       height: 36,
+      decoration: BoxDecoration(
+        color: woolColor.withValues(alpha: 0.2),
+        shape: BoxShape.circle,
+      ),
       child: CustomPaint(
-        painter: _MiniSheepHeadPainter(woolColor: woolColor),
+        painter: _MiniSheepPainter(woolColor: woolColor),
       ),
     );
   }
 }
 
-class _MiniSheepHeadPainter extends CustomPainter {
+class _MiniSheepPainter extends CustomPainter {
   final Color woolColor;
   
-  _MiniSheepHeadPainter({required this.woolColor});
+  _MiniSheepPainter({required this.woolColor});
 
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
 
-    final isDarkWool = woolColor.computeLuminance() < 0.5;
-    final outlineColor = isDarkWool ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.1);
-
     final woolPaint = Paint()..color = woolColor;
-    final woolOutline = Paint()..color = outlineColor..style = PaintingStyle.stroke..strokeWidth = 1.5;
 
-    void drawCloud(double x, double y, double r) {
-      canvas.drawCircle(Offset(x, y), r, woolPaint);
-      canvas.drawCircle(Offset(x, y), r, woolOutline);
-    }
+    // Wool clusters
+    canvas.drawCircle(Offset(cx, cy - 3), 11, woolPaint);
+    canvas.drawCircle(Offset(cx - 7, cy + 2), 7, woolPaint);
+    canvas.drawCircle(Offset(cx + 7, cy + 2), 7, woolPaint);
 
-    // Lana base (fondo)
-    drawCloud(cx, cy - 2, 13);
-    drawCloud(cx - 9, cy + 3, 9);
-    drawCloud(cx + 9, cy + 3, 9);
+    // Face
+    final facePaint = Paint()..color = const Color(0xFFFFF5EE);
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx, cy + 4), width: 14, height: 11), facePaint);
 
-    // Cara
-    final facePaint = Paint()..color = const Color(0xFF2D3748);
-    canvas.drawOval(Rect.fromCenter(center: Offset(cx, cy + 5), width: 18, height: 14), facePaint);
+    // Eyes
+    final eyePaint = Paint()..color = const Color(0xFF3D2B1F);
+    canvas.drawCircle(Offset(cx - 3, cy + 3), 1.5, eyePaint);
+    canvas.drawCircle(Offset(cx + 3, cy + 3), 1.5, eyePaint);
 
-    // Orejas
-    canvas.save();
-    canvas.translate(cx - 9, cy + 3);
-    canvas.rotate(-0.3);
-    canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: 6, height: 4), facePaint);
-    canvas.restore();
+    // Sparkle
+    final sparklePaint = Paint()..color = Colors.white;
+    canvas.drawCircle(Offset(cx - 3.5, cy + 2), 0.7, sparklePaint);
+    canvas.drawCircle(Offset(cx + 2.5, cy + 2), 0.7, sparklePaint);
 
-    canvas.save();
-    canvas.translate(cx + 9, cy + 3);
-    canvas.rotate(0.3);
-    canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: 6, height: 4), facePaint);
-    canvas.restore();
-
-    // Copete de lana (frente)
-    drawCloud(cx, cy - 3, 5);
-    drawCloud(cx - 4, cy - 2, 4);
-    drawCloud(cx + 4, cy - 2, 4);
-    
-    // Ojos (simples, sin animar por ser un ícono pequeño)
-    final eyePaint = Paint()..color = Colors.white;
-    canvas.drawCircle(Offset(cx - 4, cy + 4), 1.5, eyePaint);
-    canvas.drawCircle(Offset(cx + 4, cy + 4), 1.5, eyePaint);
+    // Blush
+    final blushPaint = Paint()
+      ..color = const Color(0xFFFF9EAA).withValues(alpha: 0.4)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawCircle(Offset(cx - 5, cy + 5), 2, blushPaint);
+    canvas.drawCircle(Offset(cx + 5, cy + 5), 2, blushPaint);
   }
 
   @override
-  bool shouldRepaint(covariant _MiniSheepHeadPainter oldDelegate) => oldDelegate.woolColor != woolColor;
+  bool shouldRepaint(covariant _MiniSheepPainter oldDelegate) => oldDelegate.woolColor != woolColor;
 }
