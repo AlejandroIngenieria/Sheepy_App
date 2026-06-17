@@ -1,189 +1,210 @@
 # Sheepy
 
-Sheepy es una aplicación diseñada para facilitar la lectura y el aprendizaje de la Biblia, adoptando un enfoque gamificado. Los usuarios avanzan a través de capítulos leyendo versículos, completando quizzes dinámicos y ganando experiencia y monedas para escalar en ligas competitivas.
+Sheepy is a gamified application designed to facilitate reading and learning the Bible. Users progress through chapters by reading verses, completing dynamic quizzes, and earning experience and coins to climb competitive leagues.
 
-El proyecto está compuesto por tres partes principales, unificadas y orquestadas con Docker para garantizar una instalación robusta y con persistencia de datos.
+The project consists of three main components, orchestrated with Docker to guarantee robust installation and data persistence.
+
+For a visual guide on how to use the app, refer to the [User Manual](USER_MANUAL.md).
 
 ---
 
-## Arquitectura y Estructura del Código
+## Tech Stack
 
-La aplicación sigue una arquitectura cliente-servidor contenedorizada. A continuación se presenta el diagrama de componentes principales:
+- **Frontend:** Flutter Web (Dart) with Riverpod for state management.
+- **Backend:** Node.js, Express, TypeScript.
+- **Database:** MySQL 8.0.
+- **Infrastructure:** Docker and Docker Compose.
+
+---
+
+## Architecture and Code Structure
+
+The application follows a containerized client-server architecture. Below is the primary component diagram:
 
 ```mermaid
 graph TD
-    subgraph Frontend [Aplicación Flutter Web]
-        UI[Componentes UI / Widgets]
-        State[Manejo de Estado - Riverpod]
-        Services[Servicios / API Client]
+    subgraph Frontend [Flutter Web Application]
+        UI[UI Components / Widgets]
+        State[State Management - Riverpod]
+        Services[Services / API Client]
         
         UI --> State
         State --> Services
     end
 
-    subgraph Backend [Servidor Node.js / Express]
-        API[Rutas REST API]
-        Auth[Autenticación JWT]
-        DBClient[Pool de Conexiones MySQL]
+    subgraph Backend [Node.js / Express Server]
+        API[REST API Routes]
+        Auth[JWT Authentication]
+        DBClient[MySQL Connection Pool]
         
         API --> Auth
         API --> DBClient
     end
 
-    subgraph Database [Contenedor MySQL 8.0]
-        Schema[Esquema de Datos]
-        Data[Volumen: db_data]
+    subgraph Database [MySQL 8.0 Container]
+        Schema[Data Schema]
+        Data[Volume: db_data]
         
         Schema --> Data
     end
 
     Services -- "HTTP / REST" --> API
-    DBClient -- "TCP (Puerto 3306)" --> Schema
+    DBClient -- "TCP Port 3306" --> Schema
 ```
 
-### Principios SOLID y Filosofía de Diseño
+### SOLID Principles and Design Philosophy
 
-El diseño del proyecto se rige por buenas prácticas de ingeniería de software, enfocándose fuertemente en el mantenimiento y la escalabilidad:
+The project design adheres to strong software engineering practices, focusing heavily on maintainability and scalability:
 
-1. **Principio de Responsabilidad Única (SRP):** 
-   - En el backend, las rutas, la lógica de autenticación y la inicialización de la base de datos están separadas. 
-   - En el frontend (Flutter), los componentes visuales (`widgets`), el manejo de estado (`providers`) y la comunicación con el servidor (`services`) tienen fronteras claramente delimitadas.
+1. **Single Responsibility Principle (SRP):**
+   - In the backend, routing, authentication logic, and database initialization are separated.
+   - In the frontend (Flutter), visual components (`widgets`), state management (`providers`), and server communication (`services`) have clearly defined boundaries.
 
-2. **Inversión de Dependencias (DIP) e Inyección de Dependencias:**
-   - En Flutter, se utiliza **Riverpod** para inyectar dependencias (como `authServiceProvider` o `quizServiceProvider`). Esto permite que los widgets dependan de abstracciones en el estado global, facilitando las pruebas y la refactorización sin acoplar directamente la lógica de negocio a la capa de presentación.
+2. **Dependency Inversion Principle (DIP) and Dependency Injection:**
+   - In Flutter, **Riverpod** is used to inject dependencies (like `authServiceProvider` or `quizServiceProvider`). This allows widgets to depend on abstractions in the global state, facilitating testing and refactoring without coupling business logic directly to the presentation layer.
 
-3. **Arquitectura Reactiva:**
-   - La interfaz de usuario es puramente declarativa y reactiva a los cambios de estado del modelo. Cuando los puntos del usuario o la racha cambian, los `Providers` de Riverpod actualizan únicamente las partes de la interfaz de usuario que dependen de esa información, garantizando un rendimiento óptimo (60 FPS).
-
----
-
-## Criterios de Seguridad y Decisiones de Diseño
-
-- **Hashing de Contraseñas:** 
-  Las contraseñas de los usuarios nunca se almacenan en texto plano. El backend utiliza bibliotecas de criptografía (como `bcrypt`) para generar un *hash* seguro con su respectivo *salt*. Esto asegura que, incluso en el caso hipotético de que la base de datos sea comprometida, las contraseñas originales no puedan ser derivadas ni leídas.
-
-- **Autenticación Stateless con JWT:**
-  La aplicación no maneja sesiones en memoria del lado del servidor. En su lugar, se emite un JSON Web Token (JWT) firmado por el backend. El cliente almacena este token de manera segura y lo envía en el encabezado de autorización HTTP en cada petición. Esto permite escalar el backend horizontalmente sin preocuparse por la afinidad de sesión.
-
-- **Persistencia de Datos (Volúmenes Docker):**
-  Para evitar la pérdida accidental de información al recrear los contenedores, se ha configurado el volumen persistente `db_data`. Este volumen mapea físicamente el directorio `/var/lib/mysql` hacia el host, permitiendo que la información (usuarios, progreso, rachas) sobreviva a ciclos de `docker-compose down`.
-
-- **Migraciones Automáticas Seguras:**
-  El archivo `server.ts` incluye scripts de inicialización que actúan como sistema de auto-migración. En lugar de usar herramientas complejas, el backend verifica y crea la estructura base de datos de manera incremental e idempotente.
+3. **Reactive Architecture:**
+   - The user interface is purely declarative and reactive to model state changes. When a user's points or streak change, Riverpod's `Providers` update only the parts of the UI that depend on that information, ensuring optimal performance (60 FPS).
 
 ---
 
-## Requisitos Previos
+## Security Criteria and Design Decisions
 
-- Docker instalado en el sistema.
+- **Password Hashing:**
+  User passwords are never stored in plain text. The backend uses cryptographic libraries (such as `bcrypt`) to generate a secure hash with its respective salt. This ensures that even if the database is compromised, the original passwords cannot be derived or read.
+
+- **Stateless Authentication with JWT:**
+  The application does not manage in-memory sessions on the server side. Instead, a JSON Web Token (JWT) signed by the backend is issued. The client stores this token securely and sends it in the HTTP authorization header with each request. This allows the backend to scale horizontally without worrying about session affinity.
+
+- **Data Persistence (Docker Volumes):**
+  To prevent accidental data loss when recreating containers, the persistent volume `db_data` is configured. This volume physically maps the `/var/lib/mysql` directory to the host, allowing user information, progress, and streaks to survive `docker-compose down` cycles.
+
+- **Secure Automatic Migrations:**
+  The `server.ts` file includes initialization scripts that act as an auto-migration system. The backend verifies and incrementally creates the database structure safely.
+
+---
+
+## Database Initialization (Important)
+
+To ensure the environment functions correctly, the database must be populated with the initial biblical data. 
+Inside the `files_to_upload/` directory, you will find two CSV files (for example, `books_202606171158.csv` and `verses_202606171158.csv`). 
+
+**You must upload the data from these CSV files into the `books` and `verses` tables respectively.**
+This can be done using a SQL client like DBeaver or MySQL Workbench by importing the CSV data into the database instance exposed on port `3308`.
+
+---
+
+## Prerequisites
+
+- Docker installed on the system.
 - Docker Compose.
 
 ---
 
-## Configuración de Variables de Entorno (.env)
+## Environment Variables (.env) Setup
 
-El backend requiere ciertas variables de entorno para funcionar correctamente. En el entorno de Docker, muchas de estas ya se pasan a través del archivo `docker-compose.yml`, pero para desarrollo local (fuera de Docker) es buena práctica contar con un archivo `.env` en la carpeta `backend_sheepy`.
+The backend requires certain environment variables to run. In the Docker environment, these are passed via the `docker-compose.yml` file, but for local development (outside Docker), it is best practice to have a `.env` file in the `backend_sheepy` folder.
 
-Crea un archivo llamado `.env` en `backend_sheepy/` con el siguiente contenido base:
+Create a `.env` file inside `backend_sheepy/` with the following base content:
 
 ```env
 DB_HOST=localhost
 DB_USER=root
-DB_PASSWORD=tu_password_aqui
+DB_PASSWORD=your_password_here
 DB_NAME=biblia_rv1909
 DB_PORT=3308
 PORT=3000
 JWT_SECRET=super_secret_jwt_key_sheepy_2026
 ```
 
-*(Nota: En producción, `JWT_SECRET` y `DB_PASSWORD` deben ser cadenas complejas y nunca compartidas públicamente).*
+*(Note: In production, `JWT_SECRET` and `DB_PASSWORD` must be complex strings and never shared publicly).*
 
 ---
 
-## Instalación y Ejecución
+## Installation and Execution
 
-La manera más sencilla de probar y ejecutar Sheepy es a través de `docker-compose`. Esto preparará la red virtual, la base de datos, el backend, y compilará la aplicación web de Flutter.
+The simplest way to test and run Sheepy is using `docker-compose`. This prepares the virtual network, database, backend, and compiles the Flutter web application.
 
-1. Abrir una terminal o línea de comandos.
-2. Navegar hasta la carpeta raíz del proyecto (donde se encuentra `docker-compose.yml`).
-3. Ejecutar el siguiente comando para construir e iniciar todos los servicios:
+1. Open a terminal or command prompt.
+2. Navigate to the root folder of the project (where `docker-compose.yml` is located).
+3. Run the following command to build and start all services in the background:
 
 ```bash
 docker-compose up --build -d
 ```
 
-> Nota: La primera ejecución tardará unos minutos debido a la descarga del entorno de compilación de Flutter y los paquetes NPM. Las ejecuciones posteriores serán casi instantáneas.
+> Note: The first run will take a few minutes due to the downloading of the Flutter build environment and NPM packages. Subsequent runs will be nearly instantaneous.
 
 ---
 
-## Cómo probar la Aplicación
+## How to Test the Application
 
-Una vez que el comando haya terminado exitosamente, todos los servicios estarán operativos:
+Once the command has completed successfully, all services will be operational:
 
-- **Interfaz de la App (Frontend):** http://localhost:8085
-- **Backend (API Node.js):** http://localhost:3000
-- **Base de Datos (MySQL):** Puerto `3308` (localhost)
-  - Usuario: `root`
-  - Contraseña: `tu_password_aqui`
-  - Base de datos: `biblia_rv1909`
+- **App Interface (Frontend):** http://localhost:8085
+- **Backend (Node.js API):** http://localhost:3000
+- **Database (MySQL):** Port `3308` (localhost)
+  - User: `root`
+  - Password: `your_password_here`
+  - Database: `biblia_rv1909`
 
-### Flujo recomendado para nuevos usuarios:
-1. Acceder a http://localhost:8085.
-2. Hacer clic en "Regístrate" para crear una cuenta nueva.
-3. Iniciar sesión y navegar a la pestaña de "Libros".
-4. Seleccionar el libro deseado, volver al "Camino" y entrar al primer capítulo disponible.
-5. Completar la lectura, pasar al "Quiz" y acertar las preguntas.
-6. Observar los cambios visuales, la obtención de experiencia y el posicionamiento en la pestaña "Ligas".
+### Recommended Flow for New Users:
+1. Navigate to http://localhost:8085.
+2. Click "Register" to create a new account.
+3. Log in and navigate to the "Books" tab.
+4. Select the desired book, return to the "Path" tab, and enter the first available chapter.
+5. Complete the reading, proceed to the "Quiz", and answer the questions correctly.
+6. Observe visual changes, experience gain, and positioning in the "Leagues" tab.
 
 ---
 
-## Detener, Reiniciar o Limpiar el entorno
+## Stop, Restart or Clean the Environment
 
-**Para detener temporalmente los servicios** (sin perder datos):
+**To temporarily stop services** (without losing data):
 ```bash
 docker-compose stop
 ```
 
-**Para reanudar los servicios:**
+**To resume services:**
 ```bash
 docker-compose start
 ```
 
-**Para destruir y eliminar los contenedores y la red** (manteniendo los datos en el volumen):
+**To destroy and remove containers and network** (keeping data in the volume):
 ```bash
 docker-compose down
 ```
 
-**Peligro: Reseteo de Fábrica completo**
-Si se desea realizar una limpieza absoluta y borrar permanentemente la base de datos (perdiendo todas las cuentas y progreso), utilizar:
+**Warning: Full Factory Reset**
+To perform an absolute cleanup and permanently delete the database (losing all accounts and progress), use:
 ```bash
 docker-compose down -v
 ```
 
 ---
 
-## Desarrollo Móvil (Android/iOS)
+## Mobile Development (Android/iOS)
 
-Para ejecutar la aplicación de Flutter de manera nativa en un emulador o dispositivo físico con "Hot Reload":
+To run the Flutter application natively on an emulator or physical device with "Hot Reload":
 
-1. **Levantar únicamente el Backend y la BD:**
-   No es necesario correr el contenedor del frontend si vas a probar en un dispositivo físico o emulador. Inicia solo los servicios necesarios:
+1. **Start only the Backend and DB:**
+   It is not necessary to run the frontend container if you are testing on a physical device or emulator. Start only the necessary services:
    ```bash
    docker-compose up -d db backend
    ```
 
-2. **Averiguar tu IP Local:**
-   Tu celular (o emulador) necesitará conectarse a tu computadora a través de tu red Wi-Fi/LAN, por lo que `localhost` no funcionará. Busca tu dirección IPv4 (ej. `192.168.1.55`):
+2. **Find your Local IP:**
+   Your mobile device (or emulator) needs to connect to your computer through your Wi-Fi/LAN network, so `localhost` will not work. Find your IPv4 address (e.g. `192.168.1.55`):
    - Windows: `ipconfig`
    - macOS/Linux: `ifconfig`
 
-3. **Ejecutar Flutter inyectando la IP:**
-   Navega a la carpeta del frontend y ejecuta la aplicación indicando la URL completa (incluyendo `http://` y el puerto `:3000`):
+3. **Run Flutter injecting the IP:**
+   Navigate to the frontend folder and run the application indicating the full URL (including `http://` and the `:3000` port):
 
    ```bash
    cd sheepy_app
    flutter pub get
-   flutter run --dart-define=BIBLE_API_HOST=http://[TU_IP_LOCAL]:3000
+   flutter run --dart-define=BIBLE_API_HOST=http://[YOUR_LOCAL_IP]:3000
    ```
    
-   *(Si usas VS Code para depurar, puedes agregar `--dart-define=BIBLE_API_HOST=http://[TU_IP_LOCAL]:3000` dentro del array `"args"` en tu archivo `.vscode/launch.json`).*
+   *(If you use VS Code for debugging, you can add `--dart-define=BIBLE_API_HOST=http://[YOUR_LOCAL_IP]:3000` inside the `"args"` array in your `.vscode/launch.json` file).*

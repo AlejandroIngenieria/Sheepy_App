@@ -101,7 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: const Center(
-                            child: Text('✨', style: TextStyle(fontSize: 40)),
+                            child: Text('🐑', style: TextStyle(fontSize: 40)),
                           ),
                         ).animate().scale(duration: 600.ms, curve: Curves.easeOutBack),
                         const SizedBox(height: 16),

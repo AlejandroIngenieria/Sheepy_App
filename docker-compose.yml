@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: mysql:8.0
@@ -12,7 +10,6 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/1_init.sql
-      - ./backend_sheepy/rv_1909.csv:/docker-entrypoint-initdb.d/rv_1909.csv
     restart: unless-stopped
 
   backend:
